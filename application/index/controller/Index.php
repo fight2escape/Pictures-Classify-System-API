@@ -14,6 +14,46 @@ class Index
 
 
     /**
+     * 修改个人头像
+     * 1、校验数据
+     * 2、上传图片
+     * 3、更新用户信息
+     * 4、删除原头像
+     * @return string
+     */
+    public function changeAvatar()
+    {
+//        1、校验数据
+        $vld = MyValidate::makeValidate(['session']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//        2、上传图片
+        $image = request()->file();
+        foreach($image as $img){
+            $info = $img->move(config('AVATAR_PATH'));
+        }
+        if(!$info){
+            return res($image->getError());
+        }
+        $path = $info->getSaveName();
+//        3、更新用户信息
+//        先获取原来的头像路径，然后更新成功后再删除原头像
+        $userInfo = $redis->getUserInfoByUid($uid);
+        $old_avatar = $userInfo['avatar'];
+        $update = [ 'avatar'=>$path ];
+        $res = $redis->updateUserInfo($uid,$update);
+        if(!$res){
+            return res('用户头像更新失败');
+        }
+//        4、删除原头像
+        unlink(getAvatarFullPath($old_avatar));
+        return res('头像更新成功',1,$update);
+    }
+
+    /**
      * 修改个人密码
      * @return string
      */
@@ -141,6 +181,7 @@ class Index
             'nickname'  =>  $p['username'],
             'gender'    =>  1,
             'preference'    =>  1,
+            'avatar'    =>  ''
         ];
 //       获取用户唯一标识id
         $uid = $redis->increaseUserCount();
@@ -156,6 +197,7 @@ class Index
             $info = $d;
             unset($info['username']);
             unset($info['password']);
+            unset($info['avatar']);
             return res('注册成功',1,$info);
         }else{
 //            回滚，删除相应的值

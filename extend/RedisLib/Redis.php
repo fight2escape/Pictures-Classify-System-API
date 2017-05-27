@@ -140,7 +140,9 @@ class Redis
      */
     public function setSession($session,$uid)
     {
-        return $this->handler->set($this->getKeySession($session),$uid,config('session_timeout'));
+//        测试中先设置成永久有效
+//        return $this->handler->set($this->getKeySession($session),$uid,config('SESSION_TIMEOUT'));
+        return $this->handler->set($this->getKeySession($session),$uid);
     }
 
     /**

@@ -13,6 +13,15 @@
 
 
 /**
+ * 获取头像完整路径
+ * @param $avatarPath
+ * @return string
+ */
+function getAvatarFullPath($avatarPath){
+    return config('AVATAR_PATH').DS.$avatarPath;
+}
+
+/**
  * 生成加密后的密码
  * @param $pwd
  * @return string
