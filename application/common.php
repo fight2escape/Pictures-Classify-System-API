@@ -13,6 +13,25 @@
 
 
 /**
+ * 获取待标记图片的完整路径（缩略图）
+ * @param $imagePath
+ * @return string
+ */
+function getImagesThumbFullPath($imagePath){
+    return config('IMAGES_THUMB_PATH').DS.$imagePath;
+}
+
+
+/**
+ * 获取待标记图片的完整路径
+ * @param $imagePath
+ * @return string
+ */
+function getImagesFullPath($imagePath){
+    return config('IMAGES_PATH').DS.$imagePath;
+}
+
+/**
  * 获取头像完整路径
  * @param $avatarPath
  * @return string

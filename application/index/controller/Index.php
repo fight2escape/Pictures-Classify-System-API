@@ -3,6 +3,7 @@ namespace app\index\controller;
 
 use RedisLib\Redis;
 use app\index\model\MyValidate;
+use think\Image as Img;
 
 class Index
 {
@@ -16,7 +17,7 @@ class Index
     /**
      * 修改个人头像
      * 1、校验数据
-     * 2、上传图片
+     * 2、上传图片、缩放、压缩
      * 3、更新用户信息
      * 4、删除原头像
      * @return string
@@ -33,7 +34,11 @@ class Index
 //        2、上传图片
         $image = request()->file();
         foreach($image as $img){
+//            进行图像缩放，压缩
             $info = $img->move(config('AVATAR_PATH'));
+            $save_path = getAvatarFullPath($info->getSaveName());
+            $img = Img::open($save_path);
+            $img->thumb(200,200)->save($save_path);
         }
         if(!$info){
             return res($image->getError());
@@ -42,14 +47,16 @@ class Index
 //        3、更新用户信息
 //        先获取原来的头像路径，然后更新成功后再删除原头像
         $userInfo = $redis->getUserInfoByUid($uid);
-        $old_avatar = $userInfo['avatar'];
+        $old_avatar = getAvatarFullPath($userInfo['avatar']);
         $update = [ 'avatar'=>$path ];
         $res = $redis->updateUserInfo($uid,$update);
         if(!$res){
             return res('用户头像更新失败');
         }
 //        4、删除原头像
-        unlink(getAvatarFullPath($old_avatar));
+        if(file_exists($old_avatar)){
+            unlink($old_avatar);
+        }
         return res('头像更新成功',1,$update);
     }
 

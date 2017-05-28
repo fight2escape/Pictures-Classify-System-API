@@ -21,8 +21,14 @@ class MyValidate extends Model
         'gender'    =>  ['gender','require|in:1,2,3','性别不能为空|性别非法'],
         'preference'=>  ['preference','require|in:1,2','推送开关不能为空|推送开关值非法'],
         'path'      =>  ['path','require','图片路径不能为空'],
+        'taskName'  =>  ['taskName','require','任务名不能为空'],
     ];
 
+
+    public static function checkTaskExistByTaskName($redis,$taskName)
+    {
+        return $redis->getTidByTaskName($taskName)?:false;
+    }
 
     /**
      * 判断session是否有效

@@ -15,4 +15,7 @@ return [
     'SESSION_TIMEOUT'   =>  3600*1,
 //    头像原图保存路径
     'AVATAR_PATH'   =>  ROOT_PATH . 'public' . DS . 'avatar',
+//    测试图片集的保存路径
+    'IMAGES_PATH'    =>  ROOT_PATH . 'public' . DS . 'images',
+    'IMAGES_THUMB_PATH'    =>  ROOT_PATH . 'public' . DS . 'images_thumb',
 ];
