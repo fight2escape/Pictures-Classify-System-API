@@ -119,9 +119,24 @@ class Redis
      * **********************************************************
      */
 
+    /**
+     * 图片信息键名"picture:$pid"
+     * @param $id
+     * @return string
+     */
     public function getKeyPicture($id)
     {
         return "picture:{$id}";
+    }
+
+    /**
+     * 任务中包含的所有图片ID
+     * @param $id
+     * @return string
+     */
+    public function getKeyTaskPictureId($id)
+    {
+        return "task:{$id}.picture.id";
     }
 
     /**
@@ -271,6 +286,17 @@ class Redis
     public function updatePictureInfo($id,$data)
     {
         return $this->handler->hMset($this->getKeyPicture($id),$data);
+    }
+
+    /**
+     * 根据tid添加到图片ID到任务的所有图片ID集
+     * @param $tid
+     * @param $pid
+     * @return int
+     */
+    public function updateTaskPictureId($tid,$pid)
+    {
+        return $this->handler->sAdd($this->getKeyTaskPictureId($tid),$pid);
     }
 
     /**

@@ -91,6 +91,8 @@ class Image
                 $redis->updateTaskInfo($tid,$data);
 //                添加到未完成标记中
                 $redis->updateTaskIncludingId($tid,$pid);
+//                添加到任务所有图片中
+                $redis->updateTaskPictureId($tid,$pid);
                 $status[] = 'ok,success';
             }else{
                 $status[] = 'no,failed';
