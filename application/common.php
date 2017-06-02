@@ -11,7 +11,6 @@
 
 // 应用公共文件
 
-
 /**
  * 获取待标记图片的完整路径（缩略图）
  * @param $imagePath
@@ -41,35 +40,50 @@ function getAvatarFullPath($avatarPath){
 }
 
 /**
- * 生成加密后的密码
- * @param $pwd
- * @return string
- */
-function getPassword($pwd){
-    return md5(md5(md5($pwd).md5(config('SALT'))).config('PWD_SALT'));
-}
-
-/**
- * 生成新session
- * @param $username
- * @return string
- */
-function getNewSession($username){
-    return md5(md5($username.time()).config('SALT'));
-}
-
-/**
  * 统一返回格式
  * @param $status
  * @param array $data
  * @param string $msg
  * @return string
  */
-function res($msg='', $status=0, $data=[]){
+function res($msg='', $status=0, $data=[])
+{
     $res = [
-        'message'   =>  $msg,
-        'status'    =>  $status,
-        'data'      =>  $data,
+        'message' => $msg,
+        'status' => $status,
+        'data' => $data,
     ];
     return json_encode($res);
+}
+
+/**
+ * 接口调用后统一返回格式
+ * @param  integer $status  [description]
+ * @param  [type]  $data    [description]
+ * @param  string  $message [description]
+ * @return [type]           [description]
+ */
+function show($status=0,$data=[],$message=''){
+	$res = [
+		'status'	=>	$status,
+		'data'		=>	$data,
+		'message'	=>	$message
+	];
+	return json($res);
+}
+
+/**
+ * 生成加密后的密码
+ * @param $pwd 需要加密的字符串
+ * @return string 加密后的字符串
+ */
+function getPassword($pwd){
+    return md5(md5(md5($pwd).md5(config('SALT'))).config('PWD_SALT'));
+}
+
+/**
+ * session等随机字符串加密
+ */
+function encrypt($str){
+	return md5(sha1(crypt($str,config('ENCRYPT_SALT').time()).rand()));
 }

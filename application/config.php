@@ -114,8 +114,6 @@ return [
     'request_cache'          => false,
     // 请求缓存有效期
     'request_cache_expire'   => null,
-    // 全局请求缓存排除规则
-    'request_cache_except'   => [],
 
     // +----------------------------------------------------------------------
     // | 模板设置
@@ -172,6 +170,14 @@ return [
         // 日志记录级别
         'level' => [],
     ],
+//    'log' =>  [
+//        'type'                => 'socket',
+//        'host'                => 'slog.thinkphp.cn',
+//        //日志强制记录到配置的client_id
+//        'force_client_ids'    => ['slog_f2967d'],
+//        //限制允许读取日志的client_id
+//        'allow_client_ids'    => ['slog_f2967d'],
+//    ],
 
     // +----------------------------------------------------------------------
     // | Trace设置 开启 app_trace 后 有效

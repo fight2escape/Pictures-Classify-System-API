@@ -7,8 +7,8 @@
  */
 
 return [
-//    盐值
-    'SALT'  =>  'We_are_the_CHAMPION@cumt.edu.cn',
+//    加密盐值
+	'SALT'		=>	'_We_are_the_CHAMPION__!!!$$$%%%007',
 //    密码盐值
     'PWD_SALT'  =>  'zhan_wu_ZHA_ni_ming_CAN_SAI_dui@CUMT.EDU.CN',
 //    session过期时间
