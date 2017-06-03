@@ -63,18 +63,18 @@ function res($msg='', $status=0, $data=[])
  * @param  string  $message [description]
  * @return [type]           [description]
  */
-function show($status=0,$data=[],$message=''){
-	$res = [
-		'status'	=>	$status,
-		'data'		=>	$data,
-		'message'	=>	$message
-	];
-	return json($res);
-}
+//function show($status=0,$data=[],$message=''){
+//	$res = [
+//		'status'	=>	$status,
+//		'data'		=>	$data,
+//		'message'	=>	$message
+//	];
+//	return json($res);
+//}
 
 /**
  * 生成加密后的密码
- * @param $pwd 需要加密的字符串
+ * @param $pwd
  * @return string 加密后的字符串
  */
 function getPassword($pwd){
@@ -83,7 +83,9 @@ function getPassword($pwd){
 
 /**
  * session等随机字符串加密
+ * @param $string
+ * @return string
  */
-function encrypt($str){
-	return md5(sha1(crypt($str,config('ENCRYPT_SALT').time()).rand()));
+function encrypt($string){
+	return md5(sha1(crypt($string,config('ENCRYPT_SALT').time()).rand()));
 }
