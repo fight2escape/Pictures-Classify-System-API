@@ -8,77 +8,219 @@ use think\Image as Img;
 
 class Image extends Controller
 {
+
+    public function getFinishedImage()
+    {
+        $vld = MyValidate::makeValidate(['session','page','count']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//       数据加工
+        $page = $p['page']??0;
+        $count = $p['count']??4;
+//        1、限制图片查询条件
+        $where = [];
+        $where['finished'] = ['==',1];
+        return $this->getImageByWhere($where,$page,$count,[],true);
+    }
+
+    /**
+     * 获取包含该标签的图片（与根据分类ID获取图片类似）
+     * 1、限制图片查询条件
+     * 2、查询用户收藏过的所有图片ID
+     * @return string
+     */
+    public function getImageByLabel()
+    {
+        $vld = MyValidate::makeValidate(['session','label','page','count']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+//        if(!is_numeric($uid)){ return res($uid); }
+//       数据加工
+        $label = $p['label'];
+        $page = $p['page']??0;
+        $count = $p['count']??4;
+//        1、限制图片查询条件
+        $where = [];
+        $where['finished'] = ['<>',1];
+        $where['label'] = ['like','%'.$label.'%'];
+//        2、查询用户收藏过的所有图片ID
+        if($uid){
+            $collected = db('collected')->where('user_id',$uid)->column('picture_id');
+        }else{
+            $collected = [];
+        }
+        return $this->getImageByWhere($where,$page,$count,$collected);
+    }
+
+
+    /**
+     * 根据分类获得子分类（该大类下包含的标签）
+     * 1、查表获取返回
+     * 2、设置成未关注（这里不设置关注功能）
+     * @return string
+     */
+    public function getSubCategory()
+    {
+        $cat_id = input('post.id');
+        if(!is_numeric($cat_id)){
+            return res('分类ID应为数字');
+        }
+//        1、查表获取返回
+        $res = db('label')
+            ->where('cat_id',$cat_id)
+            ->field('label as name')
+            ->group('label')
+            ->order('SUM(count) desc')
+            ->select();
+        if(!$res){
+            return res('子分类列表获取失败');
+        }else{
+//            2、设置成未关注（这里不设置关注功能）
+            foreach($res as $k=>$v){
+                $res[$k]['focus'] = false;
+                unset($res[$k]['count']);
+            }
+            $list['categories'] = $res;
+            return res('子分类列表获取成功',1,$list);
+        }
+    }
+
+
+    /**
+     * 用户关注或取消关注图片类型
+     * 1、查看关注记录看是否已经关注
+     * 2、如果要关注且记录不存在，则添加记录
+     * 3、如果取消关注且记录存在，则删除记录
+     * @return \think\response\Json
+     * @throws \think\Exception
+     */
+    public function putCategoryFocus()
+    {
+        $vld = MyValidate::makeValidate(['session','cat_id','focus']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+
+//        收藏字段默认值设为真
+        $focus = $p['focus']??true;
+//        查找收藏记录看是否已经收藏
+        $where['user_id'] = $uid;
+        $where['cat_id'] = $p['cat_id'];
+        $exist = db('focus')->where($where)->find();
+//        作为最终结果的判断flag
+        $res = true;
+//        如果要收藏且记录不存在，则添加记录
+        if($focus){
+            if(!$exist){
+                $insert = [
+                    'user_id' => $uid,
+                    'cat_id'  =>  $p['cat_id'],
+                    'create_time'  =>  time()
+                ];
+                $res = db('focus')->insert($insert);
+            }
+            return $res?res('关注成功',1,[]):res('关注失败');
+//        如果取消关注且记录存在，则删除记录
+        }else{
+            if($exist){
+                $res = db('focus')->where($where)->delete();
+            }
+            return $res?res('取消关注成功',1,[]):res('取消关注失败');
+        }
+    }
+
     /**
      * 获取分类展示列表
      * 1、查表获取返回
+     * 2、如果session存在，则查询关注表
+     * 3、判断是否已关注
      * @return \think\response\Json
      */
-    public function getCategoryList(){
+    public function getCategoryList()
+    {
+//        1、查表获取返回
+        $p = input('post.');
         $res = db('picture_type')
-            ->alias('it')
-            ->join('image img','it.picture_id = img.id')
-            ->field('it.id,it.name,img.path')
+            ->alias('pt')
+            ->join('picture pic','pt.picture_id = pic.id')
+            ->field('pt.id,pt.name,pic.path')
             ->select();
         if(!$res){
-            return show(0,[],'分类列表获取失败');
+            return res('分类列表获取失败');
         }else{
+//            2、如果session存在，则查询关注表
+            $session = $p['session']??false;
+            if($session){
+                $redis = new Redis();
+                $uid = MyValidate::checkSessionExistBySession($redis,$session);
+                $focus = db('focus')->where('user_id',$uid)->column('cat_id');
+            }else{
+                $focus = [];
+            }
+//            3、判断是否已关注
+            foreach($res as $k=>$v){
+                if(in_array($res[$k]['id'],$focus)){
+                    $res[$k]['focus'] = true;
+                }else{
+                    $res[$k]['focus'] = false;
+                }
+            }
             $list['categories'] = $res;
-            return show(1,$list,'分类列表获取成功');
+            return res('分类列表获取成功',1,$list);
         }
     }
 
 
     /**
      * 用户收藏或取消收藏图片
-     * 1、校验字段
-     * 2、查看收藏记录看是否已经收藏
-     * 3、如果要收藏且记录不存在，则添加记录
-     * 4、如果取消收藏且记录存在，则删除记录
+     * 1、查看收藏记录看是否已经收藏
+     * 2、如果要收藏且记录不存在，则添加记录
+     * 3、如果取消收藏且记录存在，则删除记录
      * @return \think\response\Json
      * @throws \think\Exception
      */
     public function putCollectedStatus()
     {
-        // 校验字段
+        $vld = MyValidate::makeValidate(['session','id','collected']);
+        if($vld!==true){ return res($vld); }
         $p = input('post.');
-        $rule = [
-            'session'   =>  'require|length:32',
-            'id'        =>  'require|number',
-            'collected' =>  'boolean'
-        ];
-        $this->validating($rule,$p);
-        // 收藏字段默认值设为真
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+
+//        收藏字段默认值设为真
         $collected = $p['collected']??true;
-        // 判断用户是否存在
-        $user = db('user')->where('session',$p['session'])->find();
-        if(!$user){
-            return show(0,[],'用户不存在');
-        }
-        // 查找收藏记录看是否已经收藏
-        $where['user_id'] = $user['id'];
+//        查找收藏记录看是否已经收藏
+        $where['user_id'] = $uid;
         $where['picture_id'] = $p['id'];
         $exist = db('collected')->where($where)->find();
-        // 作为最终结果的判断flag
+//        作为最终结果的判断flag
         $res = true;
-        // 如果要收藏且记录不存在，则添加记录
+//        如果要收藏且记录不存在，则添加记录
         if($collected){
             if(!$exist){
                 $insert = [
-                    'user_id' => $user['id'],
+                    'user_id' => $uid,
                     'picture_id'  =>  $p['id'],
                     'create_time'  =>  time()
                 ];
                 $res = db('collected')->insert($insert);
             }
-            return $res?show(1,[],'收藏成功'):show(0,[],'收藏失败');
-        // 如果取消收藏且记录存在，则删除记录
+            return $res?res('收藏成功',1,[]):res('收藏失败');
+//        如果取消收藏且记录存在，则删除记录
         }else{
             if($exist){
                 $res = db('collected')->where($where)->delete();
             }
-            return $res?show(1,[],'收藏取消成功'):show(0,[],'收藏取消失败');
+            return $res?res('取消收藏成功',1,[]):res('取消收藏失败');
         }
-
     }
 
 
@@ -90,46 +232,45 @@ class Image extends Controller
      */
     public function getBannerList()
     {
-        // 查询条件
+//        查询条件
         $where = [];
         $where['banner'] = 1;
-        $where['status'] = 2;
-        // 一对多连接查询，用到group_concat将多个标签结果合并成字符串
-        $banner = db('image')
-                ->alias('img')
+//        $where['finished'] = 2;
+//        多对多连接查询，用到group_concat将多个标签结果合并成字符串
+        $banner = db('picture')
+                ->alias('pic')
                 ->where($where)
-                ->join('picture_type pt','img.type_id = it.id','LEFT')
-                ->join('label lb','img.id = lb.picture_id','LEFT')
-                ->field('img.id,img.path,
-                        it.id as type_id,
-                        it.name as type_name,
+                ->join('picture_type pt','pic.type_id = pt.id','LEFT')
+                ->join('label lb','pic.id = lb.picture_id','LEFT')
+                ->field('pic.id,pic.path,pic.width,pic.height,
+                        pt.id as type_id,pt.name as type_name,
                         group_concat(lb.label order by lb.count desc separator \',\') as labels')
-                ->group('img.id')
+                ->group('pic.id')
                 ->limit(0,6)
                 ->select();
         if(!$banner){
-            return show(0,[],'轮播图获取失败');
+            return res('轮播图获取失败');
         }else{
-            // 将字符串逐个转换成数组，变量需要使用$banner才能修改真实值
+//            将字符串逐个转换成数组，变量需要使用$banner才能修改真实值
             foreach($banner as $k => $v){
                 if(isset($banner[$k]['labels'])){
                     $labels = explode(',',$banner[$k]['labels']);
                 }else{
                     $labels = [];
                 }
-                // 数组截取前几个
+//                数组截取前几个
                 $banner[$k]['labels'] = array_slice($labels,0,5);
-                // 设置收藏字段为false
+//                设置收藏字段为false
                 $banner[$k]['collected'] = false;
             }
-            return show(1,$banner,'轮播图获取成功');
+            return res('轮播图获取成功',1,$banner);
         }
     }
 
 
     /**
      * 提交一张图片的标签
-     * 1、校验数据，检查用户
+     * 1、检查标签是否已经存在，如果不存在则添加，存在则计数加1
      * 2、将标签添加入库，存在则自增，否则新建
      * 3、将添加操作记录日志中
      * @return \think\response\Json
@@ -137,22 +278,18 @@ class Image extends Controller
      */
     public function makeLabelsToId()
     {
-        // 校验数据
+        $vld = MyValidate::makeValidate(['session','image_id','labels']);
+        if($vld!==true){ return res($vld); }
         $p = input('post.');
-        $rule = [
-            'session'   =>  'require|length:32',
-            'picture_id'  =>  'require|number',
-            'labels'    =>  'require'
-        ];
-        $this->validating($rule,$p);
-        $user = db('user')->where('session',$p['session'])->find();
-        if(!$user){
-            return show(0,[],'用户不存在');
-        }
-        // 检查标签是否已经存在，如果不存在则添加，存在则计数加1
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+
+//        1、检查标签是否已经存在，如果不存在则添加，存在则计数加1
         $where = [];
-        $where['picture_id'] = $p['picture_id'];
-        // 添加结果
+        $where['picture_id'] = $p['image_id'];
+        $pictureInfo = db('picture')->where('id',$p['image_id'])->find();
+//        2、将标签添加入库，存在则自增，否则新建
         $res = [];
         foreach($p['labels'] as $val){
             $where['label'] = $val;
@@ -161,7 +298,8 @@ class Image extends Controller
                 $res[] = db('label')->where($where)->setInc('count')?$val.":添加成功":$val.":添加失败";
             }else{
                 $insert = [
-                    'picture_id'  =>  $p['picture_id'],
+                    'picture_id'  =>  $p['image_id'],
+                    'cat_id'    =>  $pictureInfo['type_id'],
                     'label'     =>  $val,
                     'count'     =>  1,
                     'create_time'   =>  time(),
@@ -170,18 +308,18 @@ class Image extends Controller
                 $res[] = db('label')->insert($insert)?$val.":添加成功":$val.":添加失败";
             }
         }
-        // 用户打标签日志
+//        3、将添加操作记录日志中
         $insert = [
-            'user_id'   =>  $user['id'],
-            'picture_id'  =>  $p['picture_id'],
+            'user_id'   =>  $uid,
+            'picture_id'  =>  $p['image_id'],
             'labels'     =>  implode(',',$p['labels']),
             'create_time'   =>  time(),
             'update_time'   =>  time()
         ];
         if(db('label_log')->insert($insert)){
-            return show(1,$res,'标签添加成功');
+            return res('标签添加成功',1,$res);
         }else{
-            return show(0,$res,'标签添加失败');
+            return res('标签日志添加失败',0,$res);
         }
     }
 
@@ -189,9 +327,10 @@ class Image extends Controller
 
     /**
      * 根据类型获取图片（待完善）
-     * 参数为空则随意推送
-     * 否则根据用户的兴趣点进行推荐
-     * @return \think\response\Json
+     * 1、用户存在则进行定向推送
+     * 2、获取相关图片
+     * 3、将字符串逐个转换成数组，变量需要使用$images才能修改真实值
+     * @return string
      */
     public function getImageByType()
     {
@@ -200,25 +339,40 @@ class Image extends Controller
         $p = input('post.');
         $redis = new Redis();
         $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
-        if(!is_numeric($uid)){ return res($uid); }
+//        if(!is_numeric($uid)){ return res($uid); }
 
-        // 数据加工
+//       数据加工
         $type = $p['type']??1;
         $page = $p['page']??0;
         $count = $p['count']??4;
-        // 用户存在则进行定向推送
+//       1、用户存在则进行定向推送
         if($uid){
             $where = [];
             $where['finished'] = ['<>',1];
             $where['type_id'] = $type;
-            // 查询用户收藏过的所有图片ID
+//           查询用户收藏过的所有图片ID
             $collected = db('collected')->where('user_id',$uid)->column('picture_id');
-        // 否则随机推送
+//       否则随机推送
         }else{
             $where = [];
             $where['finished'] = ['<>',1];
             $collected = [];
         }
+        return $this->getImageByWhere($where,$page,$count,$collected);
+    }
+
+    /**
+     * 用来获取图片
+     * @param array $where
+     * @param int $page
+     * @param int $count
+     * @param array $collected
+     * @param bool $finished
+     * @return string
+     */
+    public function getImageByWhere($where=[],$page=0,$count=4,$collected=[],$finished=false)
+    {
+//        2、获取相关图片
         $images = db('picture')
             ->alias('pic')
             ->where($where)
@@ -231,17 +385,23 @@ class Image extends Controller
             ->limit($page*$count,$count)
             ->select();
         if($images){
-            // 将字符串逐个转换成数组，变量需要使用$images才能修改真实值
+//            3、将字符串逐个转换成数组，变量需要使用$images才能修改真实值
             foreach($images as $k => $v){
                 if(isset($images[$k]['labels'])){
                     $labels = explode(',',$images[$k]['labels']);
                 }else{
                     $labels = [];
                 }
-                // 数组截取前几个
+//              数组截取前几个
                 $images[$k]['labels'] = array_slice($labels,0,5);
-                // 判断是否在收藏列表里
+//              判断是否在收藏列表里
                 $images[$k]['collected'] = in_array($images[$k]['id'],$collected)?true:false;
+                if($finished){
+//                收藏人数
+                    $images[$k]['collectedCount'] = db('collected')->where('picture_id',$images[$k]['id'])->count();
+//                打过标签的人数
+                    $images[$k]['tagedCount'] = db('label_log')->where('picture_id',$images[$k]['id'])->count();
+                }
             }
             $data['images'] = $images;
             return res('推送成功',1,$data);
@@ -261,7 +421,7 @@ class Image extends Controller
      */
     public function uploadImages()
     {
-//        1、校验数据
+//      1、校验数据
         $vld = MyValidate::makeValidate(['session','taskName']);
         if($vld !== true){ return res($vld); }
         $p = input('post.');
