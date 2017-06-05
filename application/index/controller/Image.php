@@ -9,6 +9,54 @@ use think\Image as Img;
 class Image extends Controller
 {
 
+
+    /**
+     * 获得某用户 未完成/审核中 标签
+     * @return string
+     */
+    public function getUnFinishedImage()
+    {
+        $vld = MyValidate::makeValidate(['session','page','count']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//       数据加工
+        $page = $p['page']??0;
+        $count = $p['count']??4;
+//        1、限制图片查询条件
+        $where = [];
+        $where['finished'] = ['<>',1];
+        $where['user_id'] = $uid;
+//        2、获取相关图片
+//        从label_log中得到用户打过的所有图片，和picture表连接，得到其中已完成的图片
+//        再和label表连接，得到已完成图片各自的接受标签
+        $images = db('label_log')
+            ->alias('lbl')
+            ->where($where)
+            ->join('picture pic','pic.id = lbl.picture_id','LEFT')
+//            ->join('label lb','lb.picture_id = lbl.picture_id','LEFT')
+            ->field('pic.id,path,width,height,taged_count as tagedCount,collected_count as collectedCount,
+            lbl.labels as tags')
+            ->limit($page*$count,$count)
+            ->select();
+        if($images){
+//            3、将字符串逐个转换成数组，变量需要使用$images才能修改真实值
+            foreach($images as $k => $v){
+                $images[$k]['tags'] = explode(',',$images[$k]['tags']);
+            }
+            $data['images'] = $images;
+            return res('推送成功',1,$data);
+        }else{
+            return res('推送失败');
+        }
+    }
+
+    /**
+     * 获得某用户已完成标签
+     * @return string
+     */
     public function getFinishedImage()
     {
         $vld = MyValidate::makeValidate(['session','page','count']);
@@ -22,9 +70,92 @@ class Image extends Controller
         $count = $p['count']??4;
 //        1、限制图片查询条件
         $where = [];
-        $where['finished'] = ['==',1];
-        return $this->getImageByWhere($where,$page,$count,[],true);
+        $where['finished'] = ['=',1];
+        $where['user_id'] = $uid;
+        $where['accepted'] = 1;
+//        2、获取相关图片
+//        从label_log中得到用户打过的所有图片，和picture表连接，得到其中已完成的图片
+//        再和label表连接，得到已完成图片各自的接受标签
+        $images = db('label_log')
+            ->alias('lbl')
+            ->where($where)
+            ->join('picture pic','pic.id = lbl.picture_id','LEFT')
+            ->join('label lb','lb.picture_id = lbl.picture_id','LEFT')
+            ->field('pic.id,path,width,height,taged_count as tagedCount,collected_count as collectedCount,
+            lbl.labels as tags,
+            group_concat(lb.label order by lb.count desc separator \',\') as labels')
+            ->limit($page*$count,$count)
+            ->select();
+        if($images){
+//            3、进行交集差集运算，得到被接受的标签和未被接受的标签
+            foreach($images as $k => $v){
+//                将字符串逐个转换成数组，变量需要使用$images才能修改真实值
+                $tags = explode(',',$images[$k]['tags']);
+                $labels = explode(',',$images[$k]['labels']);
+                $images[$k]['tags_accepted'] = array_intersect($tags,$labels);
+                $images[$k]['tags_rejected'] = array_diff($tags,$labels);
+                unset($images[$k]['tags']);
+                unset($images[$k]['labels']);
+            }
+            $data['images'] = $images;
+            return res('推送成功',1,$data);
+        }else{
+            return res('推送失败');
+        }
     }
+
+    /**
+     * 获得某用户已收藏图片
+     *
+     * @return string
+     */
+    public function getCollectedImage()
+    {
+        $vld = MyValidate::makeValidate(['session','page','count']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//       数据加工
+        $page = $p['page']??0;
+        $count = $p['count']??4;
+//        1、限制图片查询条件
+        $where = [];
+        $where['user_id'] = $uid;
+//        2、获取相关图片
+        $images = db('collected')
+            ->alias('cld')
+            ->where($where)
+            ->join('picture pic','cld.picture_id = pic.id','LEFT')
+            ->join('picture_type pt','pic.type_id = pt.id','LEFT')
+            ->join('label lb','pic.id = lb.picture_id','LEFT')
+            ->field('pic.id,path,width,height,
+            pt.id as type_id,pt.name as type_name,
+            group_concat(lb.label order by lb.count desc separator \',\') as labels')
+            ->group('pic.id')
+            ->limit($page*$count,$count)
+            ->select();
+        if($images){
+//            3、将字符串逐个转换成数组，变量需要使用$images才能修改真实值
+            foreach($images as $k => $v){
+                if(isset($images[$k]['labels'])){
+                    $labels = explode(',',$images[$k]['labels']);
+                }else{
+                    $labels = [];
+                }
+//              数组截取前几个
+                $images[$k]['labels'] = array_slice($labels,0,5);
+//              判断是否在收藏列表里
+                $images[$k]['collected'] = true;
+            }
+            $data['images'] = $images;
+            return res('推送成功',1,$data);
+        }else{
+            return res('推送失败');
+        }
+    }
+
 
     /**
      * 获取包含该标签的图片（与根据分类ID获取图片类似）
@@ -211,12 +342,14 @@ class Image extends Controller
                     'picture_id'  =>  $p['id'],
                     'create_time'  =>  time()
                 ];
+                db('picture')->where('id',$p['id'])->setInc('collected_count');
                 $res = db('collected')->insert($insert);
             }
             return $res?res('收藏成功',1,[]):res('收藏失败');
 //        如果取消收藏且记录存在，则删除记录
         }else{
             if($exist){
+                db('picture')->where('id',$p['id'])->setDec('collected_count');
                 $res = db('collected')->where($where)->delete();
             }
             return $res?res('取消收藏成功',1,[]):res('取消收藏失败');
@@ -270,11 +403,12 @@ class Image extends Controller
 
     /**
      * 提交一张图片的标签
+     * 0、如果之前打过标签，先把相应的标签找出来，计数减1，清除计数为0的行
      * 1、检查标签是否已经存在，如果不存在则添加，存在则计数加1
      * 2、将标签添加入库，存在则自增，否则新建
-     * 3、将添加操作记录日志中
-     * @return \think\response\Json
-     * @throws \think\Exception
+     * 3、检查图片是否满足完成条件
+     * 4、将添加操作记录日志中
+     * @return string
      */
     public function makeLabelsToId()
     {
@@ -284,12 +418,22 @@ class Image extends Controller
         $redis = new Redis();
         $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
         if(!is_numeric($uid)){ return res($uid); }
-
-//        1、检查标签是否已经存在，如果不存在则添加，存在则计数加1
+//        0、如果之前打过标签，先把相应的标签找出来，计数减1，清除计数为0的行，清除打标签记录
+        $res = $this->deleteOldLabelsByUidPid($uid,$p['image_id']);
+        if($res!==true){
+            return $res;
+        }
+//        1、检查图片是否已经存在，打过人次计数加1
+        $where = [];
+        $where['id'] = $p['image_id'];
+        $pictureInfo = db('picture')->where($where)->find();
+        if(!$pictureInfo){
+            return res('图片不存在');
+        }
+        db('picture')->where($where)->setInc('taged_count');
+//        2、将标签添加入库，存在则自增，否则新建
         $where = [];
         $where['picture_id'] = $p['image_id'];
-        $pictureInfo = db('picture')->where('id',$p['image_id'])->find();
-//        2、将标签添加入库，存在则自增，否则新建
         $res = [];
         foreach($p['labels'] as $val){
             $where['label'] = $val;
@@ -308,7 +452,11 @@ class Image extends Controller
                 $res[] = db('label')->insert($insert)?$val.":添加成功":$val.":添加失败";
             }
         }
-//        3、将添加操作记录日志中
+//        3、检查图片是否满足完成条件
+        if($this->checkPictureFinishedById($p['image_id']) == 2){
+            return res('检查图片是否满足完成条件时失败');
+        }
+//        4、将添加操作记录日志中
         $insert = [
             'user_id'   =>  $uid,
             'picture_id'  =>  $p['image_id'],
@@ -323,6 +471,118 @@ class Image extends Controller
         }
     }
 
+    /**
+     * 清楚旧标签记录
+     * 包括label表和label_log两个表中的记录
+     * 先把相应的标签找出来，计数减1
+     * 清除计数为0的行
+     * 清除打标签记录
+     * @param $uid
+     * @param $pid
+     * @return bool|string
+     */
+    public function deleteOldLabelsByUidPid($uid,$pid)
+    {
+//        0、如果之前打过标签，先把相应的标签找出来，计数减1，清除计数为0的行，清除打标签记录
+        $where = [
+            'user_id'   =>  $uid,
+            'picture_id'    =>  $pid
+        ];
+        $labels = db('label_log')->where($where)->column('labels');
+        if($labels){
+            $labels = explode(',',$labels[0]);
+//            旧标签的计数减一
+            $where = [
+                'picture_id'    =>  $pid,
+                'label'=>['in',$labels]
+            ];
+            if(!db('label')->where($where)->setDec('count')){
+                return res('旧标签清除失败');
+            }
+//            清除计数为0的行
+            $where = [
+                'count' =>  ['<=',0]
+            ];
+            db('label')->where($where)->delete();
+//            清楚label_log中记录
+            $where = [
+                'user_id'   =>  $uid,
+                'picture_id'    =>  $pid
+            ];
+            if(!db('label_log')->where($where)->delete()){
+                return res('旧标签日志清楚失败');
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 判断标签是否满足已完成条件
+     * 判断算法如下：
+     * 1、先从该图片的所有标签中选出前$count个，得到他们的count值数组$countArray
+     * 2、计算得到count的总和$sum，判断$sum<$finished_sum，小于则false
+     * 3、再计算出count的平均值$avg，判断$countArray数组中第$check_idx个的值是否小于平均值，小于则false
+     * 4、否则就满足条件，进行相应的表更新操作
+     * 返回值：0是不符合，1是符合或者操作成功，2是符合但表更新失败
+     * @param $id
+     * @return int
+     */
+    public function checkPictureFinishedById($id)
+    {
+//        $id = input('post.id');
+//        1、先检查是否已经标记为已完成
+        $pictureInfo = db('picture')->where('id',$id)->find();
+        if($pictureInfo['finished']){
+            return 1;
+        }
+//        2、配置finished条件值
+        $count = 6;
+        $finished_sum = $count*2;
+        $check_idx  = 3;
+//        3、找出该图片的标签记录，进行判断
+        $countArray = db('label')
+            ->where('picture_id',$id)
+            ->order('count desc')
+            ->limit(0,$count)
+            ->column('count');
+//        如果前几个标签的总count不满足则false
+        $sum = 0;
+        foreach($countArray as $v){
+            $sum += $v;
+        }
+        if($sum < $finished_sum){
+            return 0;
+        }
+//        如果第N个标签的count小于平均值则false
+        $avg = round($sum/$count);
+        if($countArray[$check_idx] < $avg){
+            return 0;
+        }
+//        4、满足条件，进行标签接受操作,更新label表和picture表
+        $id_array = db('label')
+            ->where('picture_id',$id)
+            ->order('count desc')
+            ->limit(0,$count)
+            ->column('id');
+        $where = [
+            'picture_id'    =>  $id,
+            'id'    =>  ['in',$id_array],
+        ];
+//        更新label表中标签为接受
+        $update = [
+            'accepted'  =>  1,
+            'update_time'   =>  time()
+        ];
+        $label_res = db('label')->where($where)->update($update);
+//        更新picture表中该图片为已完成
+        $update = [
+            'finished'  =>  1,
+            'finished_time' =>  time(),
+            'update_time'   =>  time()
+        ];
+        $pic_res = db('picture')->where('id',$id)->update($update);
+        return $label_res&&$pic_res?1:2;
+    }
 
 
     /**
@@ -362,15 +622,14 @@ class Image extends Controller
     }
 
     /**
-     * 用来获取图片
+     * 用来根据where条件获取图片
      * @param array $where
      * @param int $page
      * @param int $count
      * @param array $collected
-     * @param bool $finished
      * @return string
      */
-    public function getImageByWhere($where=[],$page=0,$count=4,$collected=[],$finished=false)
+    public function getImageByWhere($where=[],$page=0,$count=4,$collected=[])
     {
 //        2、获取相关图片
         $images = db('picture')
@@ -396,12 +655,6 @@ class Image extends Controller
                 $images[$k]['labels'] = array_slice($labels,0,5);
 //              判断是否在收藏列表里
                 $images[$k]['collected'] = in_array($images[$k]['id'],$collected)?true:false;
-                if($finished){
-//                收藏人数
-                    $images[$k]['collectedCount'] = db('collected')->where('picture_id',$images[$k]['id'])->count();
-//                打过标签的人数
-                    $images[$k]['tagedCount'] = db('label_log')->where('picture_id',$images[$k]['id'])->count();
-                }
             }
             $data['images'] = $images;
             return res('推送成功',1,$data);
@@ -432,11 +685,12 @@ class Image extends Controller
         $taskInfo = db('task')->where('name',$p['taskName'])->find();
         if(!$taskInfo){
             $data = [
-                'name'      =>  $p['taskName'],
+                'title'      =>  $p['taskName'],
                 'count'     =>  0,
                 'priority'  =>  1,
                 'count_finished'    =>  0,
                 'admin_id'  =>  $uid,
+                'description'   =>  '',
                 'create_time'   =>  time(),
                 'finished'  =>  0,
             ];
@@ -480,7 +734,7 @@ class Image extends Controller
                     'type_id'   =>  1,
                     'path' =>  $info->getSaveName(),
                     'finished'  =>  0,
-                    'taged_frequency'  =>  0,
+                    'taged_count'  =>  0,
                     'create_time'   =>  time(),
                     'update_time'   =>  time()
                 ];
@@ -499,7 +753,10 @@ class Image extends Controller
                 if(!db('task_including_pid')->insert($insert)){
                     return res('任务中未成功包含图片');
                 }
-                $status[] = 'success';
+                $status[] = [
+                    'id'    =>  $pid,
+                    'path'  =>  $data['path']
+                ];
             }else{
                 $status[] = 'failed';
             }

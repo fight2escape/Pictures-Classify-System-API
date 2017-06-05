@@ -15,6 +15,135 @@ class Index extends Controller
 
 
     /**
+     * 获取任务列表
+     * 首先查询得到任务已完成的图片数量，更新任务表中数据
+     * 然后再次进行查询才得到最终结果
+     * @return string
+     */
+    public function getTaskList()
+    {
+        $vld = MyValidate::makeValidate(['session']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//        查询任务状态，和图片表关联获取数量
+        $where = [
+            'ts.finished'     =>  0,
+            'pic.finished'      =>  1
+        ];
+        $task = db('task')
+            ->alias('ts')
+            ->where($where)
+            ->join('picture pic','ts.id = pic.task_id','LEFT')
+            ->field('ts.id,count(*) as finished,ts.count')
+            ->group('ts.id')
+            ->select();
+        foreach($task as $k=>$v){
+            db('task')->where('id',$task[$k]['id'])->update(['count_finished'  =>  $task[$k]['finished']]);
+//            更新任务状态
+            if($task[$k]['count'] == $task[$k]['finished']){
+                db('task')->where('id',$task[$k]['id'])->update(['finished'=>1]);
+            }
+        }
+        $taskInfo = db('task')
+            ->field('id,title,description,count as target,count_finished as finished')
+            ->select();
+        return res('任务信息拉取成功',1,$taskInfo);
+
+    }
+
+    /**
+     * 删除某条消息
+     * 将状态置为0
+     * @return string
+     */
+    public function deleteMessage()
+    {
+        $vld = MyValidate::makeValidate(['session','id']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//        设置消息状态
+        $where = [
+            'id'        =>  $p['id'],
+            'user_id'   =>  $uid,
+            'status'    =>  1
+        ];
+        if(!db('message')->where($where)->find()){
+            return res('消息已删除');
+        }
+        $update = [
+            'status'  =>  0,
+            'update_time'   =>  time()
+        ];
+        $res = db('message')
+            ->where($where)
+            ->update($update);
+        return $res?res('成功删除消息',1,[]):res('消息删除失败');
+    }
+
+
+    /**
+     * 将用户消息标为已读
+     * @return string
+     */
+    public function switchMessageStatus()
+    {
+        $vld = MyValidate::makeValidate(['session','id']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//        设置消息状态
+        $where = [
+            'id'        =>  $p['id'],
+            'user_id'   =>  $uid,
+            'status'    =>  1
+        ];
+        $update = [
+            'haveRead'  =>  1,
+            'update_time'   =>  time()
+        ];
+        $res = db('message')
+            ->where($where)
+            ->update($update);
+        return $res?res('成功标为已读',1,[]):res('标为已读失败');
+    }
+
+
+    /**
+     * 获取用户消息
+     * @return string
+     */
+    public function getMessage()
+    {
+        $vld = MyValidate::makeValidate(['session']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//        查询消息
+        $where = [
+            'user_id'   =>  $uid,
+            'haveRead'  =>  0,
+            'status'    =>  1
+        ];
+        $mes = db('message')
+            ->where($where)
+            ->field('id,haveRead,text,create_time as time')
+            ->select();
+        $data['messages'] = $mes;
+        return res('消息拉取成功',1,$data);
+    }
+
+
+    /**
      * 修改个人头像
      * 1、校验数据
      * 2、上传图片、缩放、压缩

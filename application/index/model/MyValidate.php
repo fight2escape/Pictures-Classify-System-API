@@ -29,7 +29,7 @@ class MyValidate extends Model
         'page'      =>  ['page','number','分页页码应为数字'],
         'count'     =>  ['count','number','每页数量应为数字'],
         'image_id'    =>  ['image_id','require|number','图片ID必须|图片ID应为数字'],
-        'id'        =>  ['id','require|number','图片ID必须|图片ID应为数字'],
+        'id'        =>  ['id','require|number','ID必须|ID应为数字'],
         'cat_id'    =>  ['cat_id','require','分类ID不能为空'],
         'labels'    =>  ['labels','require','标签不能为空'],
         'collected' =>  ['collected','boolean','收藏参数应为布尔值'],
