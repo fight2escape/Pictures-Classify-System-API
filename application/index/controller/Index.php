@@ -268,6 +268,7 @@ class Index extends Controller
     	$where = [];
     	$where['username']	=	$p['username'];
     	$where['password']	=	getPassword($p['password']);
+    	$where['status']    =   1;
     	$userInfo = db('user')->where($where)->find();
     	if(empty($userInfo)){
     		return res('用户不存在');

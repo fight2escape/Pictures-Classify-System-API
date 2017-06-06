@@ -9,6 +9,77 @@ use think\Image as Img;
 class Image extends Controller
 {
 
+    /**
+     * 提交纠错
+     * @return string
+     */
+    public function postCorrection()
+    {
+        $vld = MyValidate::makeValidate(['session','id','old_label','new_label']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
+//        检查是否已经存在
+        $where = [
+            'user_id'   =>  $uid,
+            'picture_id'    =>  $p['id'],
+            'old_label' =>  $p['oldLabel']
+        ];
+        $exist = db('correction')->where($where)->find();
+        if($exist){
+            $update = [
+                'old_label' =>  $p['oldLabel'],
+                'new_label' =>  $p['newLabel'],
+                'status'    =>  0
+            ];
+            $res = db('correction')->where($where)->update($update);
+            if(!$res){
+                return res('该纠错已经提交过了');
+            }
+        }else{
+//        入库等待处理
+            $insert = [
+                'user_id'   =>  $uid,
+                'picture_id'    =>  $p['id'],
+                'old_label' =>  $p['oldLabel'],
+                'new_label' =>  $p['newLabel'],
+                'status'    =>  0,
+                'create_time'   =>  time()
+            ];
+            $res = db('correction')->insert($insert);
+        }
+        return $res?res('纠错提交成功',1,[]):res('纠错提交失败');
+    }
+
+
+    /**
+     * 获取待纠错标签
+     * @return string
+     */
+    public function getCorrection()
+    {
+        $vld = MyValidate::makeValidate(['session','page','count']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+//        if(!is_numeric($uid)){ return res($uid); }
+//       数据加工
+        $page = $p['page']??0;
+        $count = $p['count']??4;
+//        1、限制图片查询条件
+        $where = [];
+        $where['finished'] = ['=',1];
+//        2、查询用户收藏过的所有图片ID
+        if($uid){
+            $collected = db('collected')->where('user_id',$uid)->column('picture_id');
+        }else{
+            $collected = [];
+        }
+        return $this->getImageByWhere($where,$page,$count,$collected);
+    }
 
     /**
      * 获得某用户 未完成/审核中 标签
@@ -536,9 +607,9 @@ class Image extends Controller
             return 1;
         }
 //        2、配置finished条件值
-        $count = 6;
-        $finished_sum = $count*2;
-        $check_idx  = 3;
+        $count = config('ACCEPTED_COUNT');
+        $finished_sum = config('ACCEPTED_SUM');
+        $check_idx  = config('ACCEPTED_CHECK_IDX');
 //        3、找出该图片的标签记录，进行判断
         $countArray = db('label')
             ->where('picture_id',$id)
@@ -652,7 +723,7 @@ class Image extends Controller
                     $labels = [];
                 }
 //              数组截取前几个
-                $images[$k]['labels'] = array_slice($labels,0,5);
+                $images[$k]['labels'] = array_slice($labels,0,config('ACCEPTED_COUNT'));
 //              判断是否在收藏列表里
                 $images[$k]['collected'] = in_array($images[$k]['id'],$collected)?true:false;
             }

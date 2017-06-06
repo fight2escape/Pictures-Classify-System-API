@@ -35,7 +35,34 @@ class MyValidate extends Model
         'collected' =>  ['collected','boolean','收藏参数应为布尔值'],
         'focus'     =>  ['focus','boolean','关注参数应为布尔值'],
         'label'     =>  ['label','require','标签不能为空'],
+        'old_label' =>  ['oldLabel','require','旧标签不能为空'],
+        'new_label' =>  ['newLabel','require','新标签不能为空'],
+//        管理员相关
+        'administrator_unique'    =>  ['username','require|max:40|unique:admin','用户名不能为空|用户名过长|用户名已存在'],
+        'email'     =>  ['email','require|email','邮箱不能为空|邮箱格式不正确'],
+        'super'     =>  ['super','require|in:1,0','权限不能为空|权限只能为1或0'],
     ];
+
+
+    /**
+     * 检查是否为超级管理员
+     * @return mixed|string
+     */
+    public static function checkAdminIsSuperByCookie()
+    {
+        $admin = db('admin')->where('cookie',cookie('admin'))->find();
+        return $admin['super']?$admin['id']:'超级管理员才有权限';
+    }
+
+    /**
+     * 检查发起请求的管理员是否存在
+     * @return bool
+     */
+    public static function checkAdminExistByCookie()
+    {
+        $admin = db('admin')->where('cookie',cookie('admin'))->find();
+        return $admin?$admin['id']:'管理员未登录';
+    }
 
 
     /**

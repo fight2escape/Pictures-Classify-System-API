@@ -57,22 +57,6 @@ function res($msg='', $status=0, $data=[])
 }
 
 /**
- * 接口调用后统一返回格式
- * @param  integer $status  [description]
- * @param  [type]  $data    [description]
- * @param  string  $message [description]
- * @return [type]           [description]
- */
-//function show($status=0,$data=[],$message=''){
-//	$res = [
-//		'status'	=>	$status,
-//		'data'		=>	$data,
-//		'message'	=>	$message
-//	];
-//	return json($res);
-//}
-
-/**
  * 生成加密后的密码
  * @param $pwd
  * @return string 加密后的字符串
