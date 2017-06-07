@@ -20,7 +20,6 @@ function getImagesThumbFullPath($imagePath){
     return config('IMAGES_THUMB_PATH').DS.$imagePath;
 }
 
-
 /**
  * 获取待标记图片的完整路径
  * @param $imagePath

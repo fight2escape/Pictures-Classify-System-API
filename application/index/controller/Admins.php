@@ -16,6 +16,10 @@ use think\Image as Img;
 class Admins
 {
 
+    /**
+     * 获取某一管理员详细信息
+     * @return string
+     */
     public function getAdmin()
     {
         $aid = MyValidate::checkAdminExistByCookie();
@@ -44,11 +48,10 @@ class Admins
             'username'  =>  ['like','%'.$username.'%']
         ];
 //        管理员总数
-        $total = db('admin')->count();
+        $total = db('admin')->where($where)->count();
         $admins = db('admin')
-            ->alias('am')
             ->where($where)
-            ->field('am.id,am.username,am.email,am.last_login_time as last,am.super')
+            ->field('id,username,email,last_login_time as last,super')
             ->limit($page*$count,$count)
             ->select();
 //        逐一与task表关联，获取已发布的数量
@@ -60,7 +63,6 @@ class Admins
             'admins'    =>  $admins
         ];
         return res('管理员列表拉取成功',1,$data);
-
     }
 
 

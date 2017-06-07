@@ -23,12 +23,11 @@ class MyValidate extends Model
         'gender'    =>  ['gender','require|in:1,2,3','性别不能为空|性别非法'],
         'preference'=>  ['preference','require|in:1,2','推送开关不能为空|推送开关值非法'],
         'path'      =>  ['path','require','图片路径不能为空'],
-        'taskName'  =>  ['taskName','require','任务名不能为空'],
 //        图片相关
         'type_id'   =>  ['type_id','number','类型id应该为数字'],
         'page'      =>  ['page','number','分页页码应为数字'],
         'count'     =>  ['count','number','每页数量应为数字'],
-        'image_id'    =>  ['image_id','require|number','图片ID必须|图片ID应为数字'],
+        'image_id'  =>  ['image_id','require|number','图片ID必须|图片ID应为数字'],
         'id'        =>  ['id','require|number','ID必须|ID应为数字'],
         'cat_id'    =>  ['cat_id','require','分类ID不能为空'],
         'labels'    =>  ['labels','require','标签不能为空'],
@@ -41,6 +40,11 @@ class MyValidate extends Model
         'administrator_unique'    =>  ['username','require|max:40|unique:admin','用户名不能为空|用户名过长|用户名已存在'],
         'email'     =>  ['email','require|email','邮箱不能为空|邮箱格式不正确'],
         'super'     =>  ['super','require|in:1,0','权限不能为空|权限只能为1或0'],
+//        任务相关
+        'name'  =>  ['name','require','任务名不能为空'],
+        'description'   =>  ['description','require','任务描述不能为空'],
+        'images'    =>  ['images','require','图片数组不能为空'],
+        'type'      =>  ['type','require|number','类型不能为空|类型应为数字']
     ];
 
 

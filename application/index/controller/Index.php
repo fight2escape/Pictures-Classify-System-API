@@ -30,6 +30,7 @@ class Index extends Controller
         if(!is_numeric($uid)){ return res($uid); }
 //        查询任务状态，和图片表关联获取数量
         $where = [
+            'ts.status'     =>  1,
             'ts.finished'     =>  0,
             'pic.finished'      =>  1
         ];
@@ -47,11 +48,15 @@ class Index extends Controller
                 db('task')->where('id',$task[$k]['id'])->update(['finished'=>1]);
             }
         }
+//        重新设置where条件，进行查询
+        $where = [
+            'status'    =>  1,
+        ];
         $taskInfo = db('task')
-            ->field('id,title,description,count as target,count_finished as finished')
+            ->where($where)
+            ->field('id,name,description,count as target,count_finished as finished')
             ->select();
         return res('任务信息拉取成功',1,$taskInfo);
-
     }
 
     /**
