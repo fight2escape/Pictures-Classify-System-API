@@ -68,7 +68,7 @@ class Image extends Controller
 //        if(!is_numeric($uid)){ return res($uid); }
 //       数据加工
         $page = $p['page']??0;
-        $count = $p['count']??4;
+        $count = $p['count']??10;
 //        1、限制图片查询条件
         $where = [];
         $where['finished'] = ['=',1];
@@ -81,11 +81,11 @@ class Image extends Controller
         return $this->getImageByWhere($where,$page,$count,$collected);
     }
 
-    /**
-     * 获得某用户 未完成/审核中 标签
-     * @return string
-     */
-    public function getUnFinishedImage()
+        /**
+         * 获得某用户 未完成/审核中 标签
+         * @return string
+         */
+        public function getUnFinishedImage()
     {
         $vld = MyValidate::makeValidate(['session','page','count']);
         if($vld!==true){ return res($vld); }
@@ -94,8 +94,8 @@ class Image extends Controller
         $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
         if(!is_numeric($uid)){ return res($uid); }
 //       数据加工
-        $page = $p['page']??0;
-        $count = $p['count']??4;
+        $page = $p['page']??1;
+        $count = $p['count']??10;
 //        1、限制图片查询条件
         $where = [];
         $where['finished'] = ['<>',1];
@@ -110,7 +110,7 @@ class Image extends Controller
 //            ->join('label lb','lb.picture_id = lbl.picture_id','LEFT')
             ->field('pic.id,path,width,height,taged_count as tagedCount,collected_count as collectedCount,
             lbl.labels as tags')
-            ->limit($page*$count,$count)
+            ->page($page,$count)
             ->select();
         if($images){
 //            3、将字符串逐个转换成数组，变量需要使用$images才能修改真实值
@@ -137,8 +137,8 @@ class Image extends Controller
         $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
         if(!is_numeric($uid)){ return res($uid); }
 //       数据加工
-        $page = $p['page']??0;
-        $count = $p['count']??4;
+        $page = $p['page']??1;
+        $count = $p['count']??10;
 //        1、限制图片查询条件
         $where = [];
         $where['finished'] = ['=',1];
@@ -155,18 +155,24 @@ class Image extends Controller
             ->field('pic.id,path,width,height,taged_count as tagedCount,collected_count as collectedCount,
             lbl.labels as tags,
             group_concat(lb.label order by lb.count desc separator \',\') as labels')
-            ->limit($page*$count,$count)
+            ->page($page,$count)
+            ->order('lbl.create_time')
             ->select();
         if($images){
 //            3、进行交集差集运算，得到被接受的标签和未被接受的标签
             foreach($images as $k => $v){
+//                去掉空的数据
+                if($images[$k]['id'] == null){
+                    unset($images[$k]);
+                }else{
 //                将字符串逐个转换成数组，变量需要使用$images才能修改真实值
-                $tags = explode(',',$images[$k]['tags']);
-                $labels = explode(',',$images[$k]['labels']);
-                $images[$k]['tags_accepted'] = array_intersect($tags,$labels);
-                $images[$k]['tags_rejected'] = array_diff($tags,$labels);
-                unset($images[$k]['tags']);
-                unset($images[$k]['labels']);
+                    $tags = explode(',',$images[$k]['tags']);
+                    $labels = explode(',',$images[$k]['labels']);
+                    $images[$k]['tags_accepted'] = array_intersect($tags,$labels);
+                    $images[$k]['tags_rejected'] = array_diff($tags,$labels);
+                    unset($images[$k]['tags']);
+                    unset($images[$k]['labels']);
+                }
             }
             $data['images'] = $images;
             return res('推送成功',1,$data);
@@ -189,8 +195,8 @@ class Image extends Controller
         $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
         if(!is_numeric($uid)){ return res($uid); }
 //       数据加工
-        $page = $p['page']??0;
-        $count = $p['count']??4;
+        $page = $p['page']??1;
+        $count = $p['count']??10;
 //        1、限制图片查询条件
         $where = [];
         $where['user_id'] = $uid;
@@ -205,7 +211,7 @@ class Image extends Controller
             pt.id as type_id,pt.name as type_name,
             group_concat(lb.label order by lb.count desc separator \',\') as labels')
             ->group('pic.id')
-            ->limit($page*$count,$count)
+            ->page($page,$count)
             ->select();
         if($images){
 //            3、将字符串逐个转换成数组，变量需要使用$images才能修改真实值
@@ -245,7 +251,7 @@ class Image extends Controller
 //       数据加工
         $label = $p['label'];
         $page = $p['page']??0;
-        $count = $p['count']??4;
+        $count = $p['count']??10;
 //        1、限制图片查询条件
         $where = [];
         $where['finished'] = ['<>',1];
@@ -450,7 +456,7 @@ class Image extends Controller
                         pt.id as type_id,pt.name as type_name,
                         group_concat(lb.label order by lb.count desc separator \',\') as labels')
                 ->group('pic.id')
-                ->limit(0,6)
+                ->page(1,6)
                 ->select();
         if(!$banner){
             return res('轮播图获取失败');
@@ -614,7 +620,7 @@ class Image extends Controller
         $countArray = db('label')
             ->where('picture_id',$id)
             ->order('count desc')
-            ->limit(0,$count)
+            ->page(1,$count)
             ->column('count');
 //        如果前几个标签的总count不满足则false
         $sum = 0;
@@ -633,7 +639,7 @@ class Image extends Controller
         $id_array = db('label')
             ->where('picture_id',$id)
             ->order('count desc')
-            ->limit(0,$count)
+            ->page(1,$count)
             ->column('id');
         $where = [
             'picture_id'    =>  $id,
@@ -665,27 +671,33 @@ class Image extends Controller
      */
     public function getImageByType()
     {
-        $vld = MyValidate::makeValidate(['session','type_id','page','count']);
+        $vld = MyValidate::makeValidate(['type_id','page','count']);
         if($vld!==true){ return res($vld); }
         $p = input('post.');
         $redis = new Redis();
-        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(isset($p['session'])){
+            $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
 //        if(!is_numeric($uid)){ return res($uid); }
+        }else{
+            $uid = false;
+        }
 
 //       数据加工
         $type = $p['type']??1;
-        $page = $p['page']??0;
-        $count = $p['count']??4;
+        $page = $p['page']??1;
+        $count = $p['count']??10;
+//        只推送当前任务的
+        $task = db('task')->where(['status'=>1,'finished'=>0])->order('create_time asc')->find();
+        $where = [];
+        $where['task_id'] = $task['id'];
 //       1、用户存在则进行定向推送
         if($uid){
-            $where = [];
             $where['finished'] = ['<>',1];
             $where['type_id'] = $type;
 //           查询用户收藏过的所有图片ID
             $collected = db('collected')->where('user_id',$uid)->column('picture_id');
 //       否则随机推送
         }else{
-            $where = [];
             $where['finished'] = ['<>',1];
             $collected = [];
         }
@@ -700,7 +712,7 @@ class Image extends Controller
      * @param array $collected
      * @return string
      */
-    public function getImageByWhere($where=[],$page=0,$count=4,$collected=[])
+    public function getImageByWhere($where=[],$page=1,$count=4,$collected=[])
     {
 //        2、获取相关图片
         $images = db('picture')
@@ -712,7 +724,7 @@ class Image extends Controller
             pt.id as type_id,pt.name as type_name,
             group_concat(lb.label order by lb.count desc separator \',\') as labels')
             ->group('pic.id')
-            ->limit($page*$count,$count)
+            ->page($page,$count)
             ->select();
         if($images){
 //            3、将字符串逐个转换成数组，变量需要使用$images才能修改真实值
@@ -736,42 +748,17 @@ class Image extends Controller
 
 
     /**
-     * 上传一个任务中的图片
-     * 1、校验数据，如果任务名不存在则新建，并初始化相关信息
+     * * 上传一个任务中的图片
+     * 1、校验数据
      * 2、上传、压缩图片，生成缩略图
      * 3、图片数据入库
-     * 4、任务数据更新
      * @return string
      */
     public function uploadImages()
     {
 //      1、校验数据
-        $vld = MyValidate::makeValidate(['session','taskName']);
-        if($vld !== true){ return res($vld); }
-        $p = input('post.');
-        $redis = new Redis();
-        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
-        if(!is_numeric($uid)){ return res($uid); }
-//        如果任务名不存在则新建，并初始化相关信息
-        $taskInfo = db('task')->where('name',$p['taskName'])->find();
-        if(!$taskInfo){
-            $data = [
-                'title'      =>  $p['taskName'],
-                'count'     =>  0,
-                'priority'  =>  1,
-                'count_finished'    =>  0,
-                'admin_id'  =>  $uid,
-                'description'   =>  '',
-                'create_time'   =>  time(),
-                'finished'  =>  0,
-            ];
-            $tid = db('task')->insertGetId($data);
-            if(!$tid){
-                return res('新建任务失败');
-            }
-        }else{
-            $tid = $taskInfo['id'];
-        }
+        $aid = MyValidate::checkAdminExistByCookie();
+        if(!is_numeric($aid)){ return res($aid); }
 //        2、上传图片
         $images = request()->file();
         $status = [];
@@ -782,7 +769,7 @@ class Image extends Controller
 //                图片压缩(80)
                 $save_path = getImagesFullPath($info->getSaveName());
                 $img = Img::open($save_path);
-                $img->save($save_path);
+                $img->save($save_path,null,85);
 //                接下来拷贝一份做缩略图，先判断存放文件夹是否存在
 //                如果文件夹没有创建，则新建，这里的缩略图
                 $save_thumb_dir = config('IMAGES_THUMB_PATH').DS.date('Ymd');
@@ -794,14 +781,14 @@ class Image extends Controller
                 if(copy($save_path,$save_thumb_path)){
 //                生成缩略图
                     $img_thumb = Img::open($save_thumb_path);
-                    $img_thumb->thumb(250,250)->save($save_thumb_path,null,92);
+                    $img_thumb->thumb(250,250)->save($save_thumb_path,null,95);
                 }
 //                3、图片数据入库
                 $data = [
                     'name'  =>  $info->getFilename(),
                     'width' =>  $img->width(),
                     'height'=>  $img->height(),
-                    'task_id'   =>  $tid,
+                    'task_id'   =>  0,
                     'type_id'   =>  1,
                     'path' =>  $info->getSaveName(),
                     'finished'  =>  0,
@@ -812,17 +799,6 @@ class Image extends Controller
                 $pid = db('picture')->insertGetId($data);
                 if(!$pid){
                     return res('图片信息录入失败');
-                }
-//                4、任务数据更新
-                if(!db('task')->where('id',$tid)->setInc('count')){
-                    return res('任务的图片数量更新失败');
-                }
-                $insert = [
-                    'task_id'   =>  $tid,
-                    'picture_id'   =>  $pid
-                ];
-                if(!db('task_including_pid')->insert($insert)){
-                    return res('任务中未成功包含图片');
                 }
                 $status[] = [
                     'id'    =>  $pid,

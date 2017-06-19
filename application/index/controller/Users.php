@@ -40,8 +40,8 @@ class Users
         if(!is_numeric($aid)){ return res($aid); }
         $p = input('post.');
 
-        $page = $p['page']??0;
-        $count = $p['count']??4;
+        $page = $p['page']??1;
+        $count = $p['count']??10;
 //        如果有username则作为搜索条件进行搜索
         $username = $p['username']??'';
         $where = [
@@ -53,7 +53,7 @@ class Users
         $users = db('user')
             ->where($where)
             ->field('id,username,nickname,gender,email,scores,avatar')
-            ->limit($page*$count,$count)
+            ->page($page,$count)
             ->select();
         $data = [
             'total' =>  $total,
@@ -143,6 +143,7 @@ class Users
             'nickname'  =>  $p['nickname'],
             'gender'    =>  $p['gender'],
             'email'     =>  $p['email'],
+            'avatar'    =>  config('USER_AVATAR'),
             'create_time'   =>  time()
         ];
         $res = db('user')->insert($insert);

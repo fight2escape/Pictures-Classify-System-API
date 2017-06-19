@@ -28,7 +28,7 @@ class Task
         $labels = db('label')
             ->where('picture_id', $picture['id'])
             ->order('count desc')
-            ->limit(0, config('ACCEPTED_COUNT'))
+            ->page(1, config('ACCEPTED_COUNT'))
             ->column('label');
         $data = [
             'picture_name'  =>  $picture['name'],
@@ -100,8 +100,8 @@ class Task
         if(!is_numeric($aid)){ return res($aid); }
         $p = input('post.');
 
-        $page = $p['page']??0;
-        $count = $p['count']??4;
+        $page = $p['page']??1;
+        $count = $p['count']??10;
         $where = [];
         if(isset($p['name'])){
             $where['name'] = ['like','%'.$p['name'].'%'];
@@ -119,7 +119,7 @@ class Task
             ->join('picture pic','ts.id = pic.task_id','LEFT')
             ->field('ts.id,count(*) as finished,ts.count')
             ->group('ts.id')
-            ->limit($page*$count,$count)
+            ->page($page,$count)
             ->select();
         foreach($task as $k=>$v){
             db('task')->where('id',$task[$k]['id'])->update(['count_finished'  =>  $task[$k]['finished']]);

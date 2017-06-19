@@ -40,8 +40,8 @@ class Admins
         if(!is_numeric($aid)){ return res($aid); }
         $p = input('post.');
 
-        $page = $p['page']??0;
-        $count = $p['count']??4;
+        $page = $p['page']??1;
+        $count = $p['count']??10;
 //        如果有username则作为搜索条件进行搜索
         $username = $p['username']??'';
         $where = [
@@ -52,7 +52,7 @@ class Admins
         $admins = db('admin')
             ->where($where)
             ->field('id,username,email,last_login_time as last,super')
-            ->limit($page*$count,$count)
+            ->page($page,$count)
             ->select();
 //        逐一与task表关联，获取已发布的数量
         foreach($admins as $k=>$v){

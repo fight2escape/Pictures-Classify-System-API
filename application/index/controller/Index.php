@@ -299,7 +299,8 @@ class Index extends Controller
 	 				'nickname'	=>	$userInfo['nickname'],
 	 				'avatar'	=>	$userInfo['avatar'],
 	 				'gender'	=>	$userInfo['gender'],
-	 				'preference'=>	$userInfo['preference']
+	 				'preference'=>	$userInfo['preference'],
+                    'scores'    =>  $userInfo['scores']
 	 			];
  				return res('登陆成功',1,$data);
 			}
@@ -327,7 +328,7 @@ class Index extends Controller
             'username'	=>	$p['username'],
             'password'	=>	getPassword($p['password']),
             'nickname'	=>	$p['username'],
-            'avatar'	=>	'',
+            'avatar'	=>	config('USER_AVATAR'),
             'create_time'=>	time(),
             'update_time'=>	time()
         ];

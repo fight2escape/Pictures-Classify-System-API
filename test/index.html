@@ -5,7 +5,14 @@
 	<title>test</title>
 </head>
 <body>
-	<form action="https://img.fight2escape.club/index/task/exportTask" method="POST">
+	<form action="https://img.fight2escape.club/index/image/getImageByType" enctype="multipart/form-data" method="POST">
+		<input type="file" name="test1" >
+		<!-- <input type="file" name="test2" > -->
+
+		<input type="text" name="type_id" value="1">
+
+	
+
 		<input type="text" name="name" value="bfebc2eab5b2a406705a35e0768fdba9.jpg">
 		<!-- <input type="text" name="name" value="task_test1"> -->
 		<input type="text" name="description" value="task_test1_description_change">
@@ -20,6 +27,8 @@
 		<input type="text" name="removed[]" value="2">
 
 		<input type="text" name="id" value="1">
+		<input type="text" name="oldLabel" value="good">
+		<input type="text" name="newLabel" value="aa">
 		<input type="text" name="type" value="1">
 
 		<input type="text" name="username" value="test0">
