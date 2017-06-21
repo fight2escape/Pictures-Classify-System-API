@@ -20,10 +20,10 @@ return [
 //    测试图片集的保存路径
     'IMAGES_PATH'    =>  ROOT_PATH . 'public' . DS . 'images',
     'IMAGES_THUMB_PATH'    =>  ROOT_PATH . 'public' . DS . 'images_thumb',
-//    标签接受策略
-    'ACCEPTED_COUNT'    =>  6,
-    'ACCEPTED_SUM'      =>  12,
-    'ACCEPTED_CHECK_IDX'    =>  3,
+//    标签接受策略(原来是 6/12/3)
+    'ACCEPTED_COUNT'    =>  3,
+    'ACCEPTED_SUM'      =>  6,
+    'ACCEPTED_CHECK_IDX'    =>  1,
 //    用户默认头像地址
     'USER_AVATAR'   =>  '20170619/92ded34be9fa1db3190decc58f6c27bf.png',
 ];

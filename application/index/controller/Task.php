@@ -53,15 +53,18 @@ class Task
                 'what'  =>  'how'
             ];
             file_put_contents('output_test.txt',$data,FILE_APPEND);
-            $fileName = 'output_test.txt';
-            header("Content-Type:application/octet-stream");
-            header("Content-Disposition:attachment;filename=".$fileName);
-            header("Accept-ranges:bytes");
-            header("Accept-Length:".filesize($fileName));
-            $h = fopen($fileName, 'r');
-            echo fread($h, filesize($fileName));
-            fclose($h);
-            return res('ok');
+//            $fileName = 'output_test.txt';
+//            header("Content-Type:application/octet-stream");
+//            header("Content-Disposition:attachment;filename=".$fileName);
+//            header("Accept-ranges:bytes");
+//            header("Accept-Length:".filesize($fileName));
+//            $h = fopen($fileName, 'r');
+//            echo fread($h, filesize($fileName));
+//            fclose($h);
+            $data = [
+                'url'   =>  'https://img.fight2escape.club/output_test.txt'
+            ];
+            return res('获取成功',1,$data);
         }else if(2 == $p['type']){
 
         }else{
@@ -104,7 +107,9 @@ class Task
         $count = $p['count']??10;
         $where = [];
         if(isset($p['name'])){
-            $where['name'] = ['like','%'.$p['name'].'%'];
+            preg_match_all("/./u",$p['name'],$tmp);
+            $name = implode('%',$tmp[0]);
+            $where['ts.name'] = ['like','%'.$name.'%'];
         }
 
 //        查询任务状态，和图片表关联获取数量

@@ -442,9 +442,12 @@ class Image extends Controller
      */
     public function getBannerList()
     {
+//        只推送当前任务的
+        $task = db('task')->where(['status'=>1,'finished'=>0])->order('create_time asc')->find();
 //        查询条件
         $where = [];
-        $where['banner'] = 1;
+        $where['task_id'] = $task['id'];
+        $where['banner'] = 0;   // 暂时没有后台功能，就让所有的图都能上墙好了，默认最新
 //        $where['finished'] = 2;
 //        多对多连接查询，用到group_concat将多个标签结果合并成字符串
         $banner = db('picture')
@@ -456,6 +459,7 @@ class Image extends Controller
                         pt.id as type_id,pt.name as type_name,
                         group_concat(lb.label order by lb.count desc separator \',\') as labels')
                 ->group('pic.id')
+                ->order('pic.id desc')
                 ->page(1,6)
                 ->select();
         if(!$banner){
