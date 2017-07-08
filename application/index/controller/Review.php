@@ -93,18 +93,34 @@ class Review
             ->join('picture pic','c.picture_id = pic.id')
             ->field('pic.id,pic.path,c.old_label,c.new_label')
             ->page($page,$count)
-            ->order('c.create_time desc')
+            ->order('picture_id asc,c.create_time desc')
             ->select();
 //        整理成所需格式
+        $tmp = [];
+        $ti = 0;
         foreach($images as $k=>$v){
-            $images[$k]['labels'] = [
+            $label = [
                 'oldLabel'  =>  $images[$k]['old_label'],
                 'newLabel'  =>  $images[$k]['new_label']
             ];
             unset($images[$k]['old_label']);
             unset($images[$k]['new_label']);
+            if($k>0 && ($images[$k]['id'] == $images[$ti]['id'])){
+                array_push($images[$ti]['labels'],$label);
+                array_push($tmp,$k);
+            }else{
+                $ti = $k;
+                $images[$k]['labels'] = [];
+                array_push($images[$k]['labels'],$label);
+            }
         }
         $total = db('correction')->where($where)->count();
+        $di = 0;
+        foreach($tmp as $v){
+            array_splice($images,$v-$di,1);
+            $di++;
+            $total--;
+        }
         $data = [
             'images'    =>  $images,
             'total'     =>  $total

@@ -152,7 +152,7 @@ class Image extends Controller
             ->where($where)
             ->join('picture pic','pic.id = lbl.picture_id','LEFT')
             ->join('label lb','lb.picture_id = lbl.picture_id','LEFT')
-            ->field('pic.id,path,width,height,taged_count as tagedCount,collected_count as collectedCount,
+            ->field('pic.id,path,width,height,taged_count as taged,collected_count as collected,
             lbl.labels as tags,
             group_concat(lb.label order by lb.count desc separator \',\') as labels')
             ->page($page,$count)
@@ -496,41 +496,41 @@ class Image extends Controller
         $vld = MyValidate::makeValidate(['session','image_id','labels']);
         if($vld!==true){ return res($vld); }
         $p = input('post.');
-        $redis = new Redis();
-        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
-        if(!is_numeric($uid)){ return res($uid); }
+            $redis = new Redis();
+            $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+            if(!is_numeric($uid)){ return res($uid); }
 //        0、如果之前打过标签，先把相应的标签找出来，计数减1，清除计数为0的行，清除打标签记录
-        $res = $this->deleteOldLabelsByUidPid($uid,$p['image_id']);
-        if($res!==true){
-            return $res;
-        }
+            $res = $this->deleteOldLabelsByUidPid($uid,$p['image_id']);
+            if($res!==true){
+                return $res;
+            }
 //        1、检查图片是否已经存在，打过人次计数加1
-        $where = [];
-        $where['id'] = $p['image_id'];
-        $pictureInfo = db('picture')->where($where)->find();
-        if(!$pictureInfo){
-            return res('图片不存在');
-        }
-        db('picture')->where($where)->setInc('taged_count');
+            $where = [];
+            $where['id'] = $p['image_id'];
+            $pictureInfo = db('picture')->where($where)->find();
+            if(!$pictureInfo){
+                return res('图片不存在');
+            }
+                db('picture')->where($where)->setInc('taged_count');
 //        2、将标签添加入库，存在则自增，否则新建
-        $where = [];
-        $where['picture_id'] = $p['image_id'];
-        $res = [];
-        foreach($p['labels'] as $val){
-            $where['label'] = $val;
-            $exist = db('label')->where($where)->find();
-            if($exist){
-                $res[] = db('label')->where($where)->setInc('count')?$val.":添加成功":$val.":添加失败";
-            }else{
-                $insert = [
-                    'picture_id'  =>  $p['image_id'],
-                    'cat_id'    =>  $pictureInfo['type_id'],
-                    'label'     =>  $val,
-                    'count'     =>  1,
-                    'create_time'   =>  time(),
-                    'update_time'   =>  time()
-                ];
-                $res[] = db('label')->insert($insert)?$val.":添加成功":$val.":添加失败";
+                $where = [];
+                $where['picture_id'] = $p['image_id'];
+                $res = [];
+                foreach($p['labels'] as $val){
+                    $where['label'] = $val;
+                    $exist = db('label')->where($where)->find();
+                    if($exist){
+                        $res[] = db('label')->where($where)->setInc('count')?$val.":添加成功":$val.":添加失败";
+                    }else{
+                        $insert = [
+                            'picture_id'  =>  $p['image_id'],
+                            'cat_id'    =>  $pictureInfo['type_id'],
+                            'label'     =>  $val,
+                            'count'     =>  1,
+                            'create_time'   =>  time(),
+                            'update_time'   =>  time()
+                        ];
+                        $res[] = db('label')->insert($insert)?$val.":添加成功":$val.":添加失败";
             }
         }
 //        3、检查图片是否满足完成条件
@@ -759,9 +759,9 @@ class Image extends Controller
      * @return string
      */
     public function uploadImages()
-    {
+            {
 //      1、校验数据
-        $aid = MyValidate::checkAdminExistByCookie();
+            $aid = MyValidate::checkAdminExistByCookie();
         if(!is_numeric($aid)){ return res($aid); }
 //        2、上传图片
         $images = request()->file();

@@ -89,6 +89,9 @@ class Tags
         $where['label']  = ['like','%'.$name.'%'];
 //        1、先获取总数量
         $total = db('label')
+            ->alias('lb')
+            ->where($where)
+            ->join('picture pic','lb.picture_id = pic.id')
             ->group('label')
             ->count();
 //        2、根据标签进行分组，同时随机获取相关的第一张图片的路径

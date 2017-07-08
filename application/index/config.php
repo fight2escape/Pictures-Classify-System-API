@@ -25,5 +25,5 @@ return [
     'ACCEPTED_SUM'      =>  6,
     'ACCEPTED_CHECK_IDX'    =>  1,
 //    用户默认头像地址
-    'USER_AVATAR'   =>  '20170619/92ded34be9fa1db3190decc58f6c27bf.png',
+    'USER_AVATAR'   =>  '',
 ];

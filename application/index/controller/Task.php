@@ -247,10 +247,11 @@ class Task
             return res('该任务已存在');
         }
 //        初始化相关信息
+        $count = count($p['images']);
         $images_string = implode(',',$p['images']);
         $data = [
             'name'      =>  $p['name'],
-            'count'     =>  0,
+            'count'     =>  $count,
             'priority'  =>  1,
             'count_finished'    =>  0,
             'admin_id'  =>  $aid,
