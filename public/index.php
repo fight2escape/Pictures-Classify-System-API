@@ -18,5 +18,9 @@ define('APP_PATH', __DIR__ . '/../application/');
 define('FILE_PATH',__DIR__ . '/uploads/');
 
 
+function __e($out){
+    die(dump($out));
+}
+
 // 加载框架引导文件
 require __DIR__ . '/../thinkphp/start.php';

@@ -46,6 +46,7 @@ class Index extends Controller
 //            更新任务状态
             if($task[$k]['count'] == $task[$k]['finished']){
                 db('task')->where('id',$task[$k]['id'])->update(['finished'=>1]);
+                (new Redis())->setCurrentTaskId('');
             }
         }
 //        重新设置where条件，进行查询
@@ -142,6 +143,7 @@ class Index extends Controller
         $mes = db('message')
             ->where($where)
             ->field('id,haveRead,text,create_time as time')
+            ->order('create_time desc')
             ->select();
         $data['messages'] = $mes;
         return res('消息拉取成功',1,$data);
@@ -329,6 +331,7 @@ class Index extends Controller
             'password'	=>	getPassword($p['password']),
             'nickname'	=>	$p['username'],
             'avatar'	=>	config('USER_AVATAR'),
+            'scores'    =>  5,
             'create_time'=>	time(),
             'update_time'=>	time()
         ];
@@ -339,22 +342,22 @@ class Index extends Controller
         $session_res = $redis->setSession($session,$uid);
 //       3、入库后回信
         if($uid && $session_res){
-            $insert = [
-                'user_id'   =>  $uid,
-                'haveRead'  =>  0,
-                'text'      =>  '亲爱的'.$p['username'].'，欢迎使用战五渣匿名参赛队开发的图片打标签软件',
-                'status'    =>  1,
-                'create_time'   =>  time(),
-                'update_time'   =>  time()
-            ];
-            $res_mes = db('message')->insert($insert);
             $data = [
                 'session'	=>	$session,
                 'nickname'	=>	$p['username'],
                 'gender'	=>	3,
                 'preference'=>	2
             ];
-            return $res_mes?res('注册成功',1,$data):res('注册成功但消息发送失败');
+
+            $insert = [
+                'user_id'   =>  $uid,
+                'text'      =>  sprintf('亲爱的%s，欢迎使用战五渣匿名参赛队开发的图片打标签软件',$p['username']),
+                'create_time'   =>  time(),
+                'update_time'   =>  time()
+            ];
+            db('message')->insert($insert);
+
+            return res('注册成功',1,$data);
         }else{
             return res('注册失败',0,[$uid,$session_res]);
         }

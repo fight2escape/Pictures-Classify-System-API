@@ -20,16 +20,65 @@ class Tags
     {
         $aid = MyValidate::checkAdminExistByCookie();
         if(!is_numeric($aid)){ return res($aid); }
+        $tagName = input('post.name')??'';
+//        条件为标签名
+        $where = [];
+        $where['label'] = ['like','%'.$tagName.'%'];
+        $where['accepted'] = 1;
+        //        直接获取相关图片
+        $images = db('label')
+            ->where($where)
+            ->field('picture_id')
+            ->select();
+        $imageIds = getIds($images, 'picture_id');
+
         $data = [
-            'test'  =>  'ok,yes,no,good\n',
-            'time'  =>  time().'\n',
-            'what'  =>  'how'
-        ];
-        file_put_contents('output_test.json',$data,FILE_APPEND);
-        $data = [
-            'url'   =>  'https://img.fight2escape.club/output_test.json'
+            'url'   =>  $this->getExportUrl($imageIds)
         ];
         return res('获取成功',1,$data);
+    }
+
+    // 根据ids获取需要导出的数据
+    public function getExportUrl($ids, $fileName = 'output_label')
+    {
+        $fileName .= '.csv';
+        $res = [];
+        if(!empty($ids)){
+            // 获取图片路径
+            $where = [];
+            $where['id'] = ['in',$ids];
+            $pathArr = db('picture')
+                ->where($where)
+                ->field('id,path')
+                ->select();
+            $pathArr = mkKeyAssoc($pathArr, 'id', 'path');
+            // 获取标签
+            $where = [];
+            $where['picture_id'] = ['in',$ids];
+            $where['accepted'] = 1;
+            $labels = db('label')
+                ->where($where)
+                ->field('picture_id,
+            group_concat(label order by count desc separator \'; \') as labels')
+                ->group('picture_id')
+                ->select();
+            $labels = mkKeyAssoc($labels, 'picture_id', 'labels');
+            // 合并路径和标签
+            foreach($pathArr as $key=>$val){
+                $res[$key] = [
+                    'path'  =>  $val,
+                    'labels'    =>  $labels[$key]
+                ];
+            }
+        }
+        // 输出csv格式
+        $csv = 'id,url,labels'.PHP_EOL;
+        $i = 1;
+        foreach($res as $row){
+            $csv .= sprintf('%s,%s,%s%s', $i++, $row['path'], $row['labels'], PHP_EOL);
+        }
+        file_put_contents($fileName, $csv);
+        return 'https://img.fight2escape.club/' . $fileName;
     }
 
     /**
@@ -89,9 +138,6 @@ class Tags
         $where['label']  = ['like','%'.$name.'%'];
 //        1、先获取总数量
         $total = db('label')
-            ->alias('lb')
-            ->where($where)
-            ->join('picture pic','lb.picture_id = pic.id')
             ->group('label')
             ->count();
 //        2、根据标签进行分组，同时随机获取相关的第一张图片的路径

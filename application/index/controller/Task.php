@@ -47,22 +47,18 @@ class Task
         $p = input('post.');
 //        根据类型判断是导出标签还是图片文件
         if(1 == $p['type']){
-            $data = [
-                'test'  =>  'ok,yes,no,good\n',
-                'time'  =>  time().'\n',
-                'what'  =>  'how'
+            $id = $p['id'];
+            $where = [
+                'task_id'    =>  $id,
+                'finished'   =>  1
             ];
-            file_put_contents('output_test.txt',$data,FILE_APPEND);
-//            $fileName = 'output_test.txt';
-//            header("Content-Type:application/octet-stream");
-//            header("Content-Disposition:attachment;filename=".$fileName);
-//            header("Accept-ranges:bytes");
-//            header("Accept-Length:".filesize($fileName));
-//            $h = fopen($fileName, 'r');
-//            echo fread($h, filesize($fileName));
-//            fclose($h);
+            $ids = db('picture')
+                ->where($where)
+                ->field('id')
+                ->select();
+            $ids = getIds($ids, 'id');
             $data = [
-                'url'   =>  'https://img.fight2escape.club/output_test.txt'
+                'url'   =>  (new Tags())->getExportUrl($ids,'output_task')
             ];
             return res('获取成功',1,$data);
         }else if(2 == $p['type']){
@@ -131,6 +127,7 @@ class Task
 //            更新任务状态
             if($task[$k]['count'] == $task[$k]['finished']){
                 db('task')->where('id',$task[$k]['id'])->update(['finished'=>1]);
+                (new Redis())->setCurrentTaskId('');
             }
         }
 //        重新设置where条件，进行查询
@@ -247,11 +244,10 @@ class Task
             return res('该任务已存在');
         }
 //        初始化相关信息
-        $count = count($p['images']);
         $images_string = implode(',',$p['images']);
         $data = [
             'name'      =>  $p['name'],
-            'count'     =>  $count,
+            'count'     =>  0,
             'priority'  =>  1,
             'count_finished'    =>  0,
             'admin_id'  =>  $aid,

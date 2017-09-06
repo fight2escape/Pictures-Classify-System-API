@@ -81,11 +81,11 @@ class Image extends Controller
         return $this->getImageByWhere($where,$page,$count,$collected);
     }
 
-        /**
-         * 获得某用户 未完成/审核中 标签
-         * @return string
-         */
-        public function getUnFinishedImage()
+    /**
+     * 获得某用户 未完成/审核中 标签
+     * @return string
+     */
+    public function getUnFinishedImage()
     {
         $vld = MyValidate::makeValidate(['session','page','count']);
         if($vld!==true){ return res($vld); }
@@ -168,8 +168,8 @@ class Image extends Controller
 //                将字符串逐个转换成数组，变量需要使用$images才能修改真实值
                     $tags = explode(',',$images[$k]['tags']);
                     $labels = explode(',',$images[$k]['labels']);
-                    $images[$k]['tags_accepted'] = array_intersect($tags,$labels);
-                    $images[$k]['tags_rejected'] = array_diff($tags,$labels);
+                    $images[$k]['tags_accepted'] = $this->getArray(array_intersect($tags,$labels));
+                    $images[$k]['tags_rejected'] = $this->getArray(array_diff($tags,$labels))   ;
                     unset($images[$k]['tags']);
                     unset($images[$k]['labels']);
                 }
@@ -179,6 +179,14 @@ class Image extends Controller
         }else{
             return res('推送失败');
         }
+    }
+
+    public function getArray($array){
+        $tmp = [];
+        foreach($array as $arr){
+            $tmp[] = $arr;
+        }
+        return $tmp;
     }
 
     /**
@@ -496,43 +504,51 @@ class Image extends Controller
         $vld = MyValidate::makeValidate(['session','image_id','labels']);
         if($vld!==true){ return res($vld); }
         $p = input('post.');
-            $redis = new Redis();
-            $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
-            if(!is_numeric($uid)){ return res($uid); }
+        $redis = new Redis();
+        $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+        if(!is_numeric($uid)){ return res($uid); }
 //        0、如果之前打过标签，先把相应的标签找出来，计数减1，清除计数为0的行，清除打标签记录
-            $res = $this->deleteOldLabelsByUidPid($uid,$p['image_id']);
-            if($res!==true){
-                return $res;
-            }
+        $res = $this->deleteOldLabelsByUidPid($uid,$p['image_id']);
+        if($res!==true){
+            return $res;
+        }
 //        1、检查图片是否已经存在，打过人次计数加1
-            $where = [];
-            $where['id'] = $p['image_id'];
-            $pictureInfo = db('picture')->where($where)->find();
-            if(!$pictureInfo){
-                return res('图片不存在');
-            }
-                db('picture')->where($where)->setInc('taged_count');
+        $where = [];
+        $where['id'] = $p['image_id'];
+        $pictureInfo = db('picture')->where($where)->find();
+        if(!$pictureInfo){
+            return res('图片不存在');
+        }
+        db('picture')->where($where)->setInc('taged_count');
 //        2、将标签添加入库，存在则自增，否则新建
-                $where = [];
-                $where['picture_id'] = $p['image_id'];
-                $res = [];
-                foreach($p['labels'] as $val){
-                    $where['label'] = $val;
-                    $exist = db('label')->where($where)->find();
-                    if($exist){
-                        $res[] = db('label')->where($where)->setInc('count')?$val.":添加成功":$val.":添加失败";
-                    }else{
-                        $insert = [
-                            'picture_id'  =>  $p['image_id'],
-                            'cat_id'    =>  $pictureInfo['type_id'],
-                            'label'     =>  $val,
-                            'count'     =>  1,
-                            'create_time'   =>  time(),
-                            'update_time'   =>  time()
-                        ];
-                        $res[] = db('label')->insert($insert)?$val.":添加成功":$val.":添加失败";
+        $where = [];
+        $where['picture_id'] = $p['image_id'];
+        $res = [];
+        foreach($p['labels'] as $val){
+            $where['label'] = $val;
+            $exist = db('label')->where($where)->find();
+            if($exist){
+                $res[] = db('label')->where($where)->setInc('count')?$val.":添加成功":$val.":添加失败";
+            }else{
+                $insert = [
+                    'picture_id'  =>  $p['image_id'],
+                    'cat_id'    =>  $pictureInfo['type_id'],
+                    'label'     =>  $val,
+                    'count'     =>  1,
+                    'create_time'   =>  time(),
+                    'update_time'   =>  time()
+                ];
+                $res[] = db('label')->insert($insert)?$val.":添加成功":$val.":添加失败";
             }
         }
+        db('user')->where(['id'=>$uid])->setInc('scores',count($p['labels']));
+        $insert = [
+            'user_id'   =>  $uid,
+            'text'      =>  sprintf('您为ID为%s的图片打上了标签:%s',$p['image_id'],implode(';',$p['labels'])),
+            'create_time'   =>  time(),
+            'update_time'   =>  time()
+        ];
+        db('message')->insert($insert);
 //        3、检查图片是否满足完成条件
         if($this->checkPictureFinishedById($p['image_id']) == 2){
             return res('检查图片是否满足完成条件时失败');
@@ -709,6 +725,136 @@ class Image extends Controller
     }
 
     /**
+     * 获取个性化推送的图片
+     * @return string
+     */
+    public function getImageByPush()
+    {
+        $vld = MyValidate::makeValidate(['page','count']);
+        if($vld!==true){ return res($vld); }
+        $p = input('post.');
+        $redis = new Redis();
+        if(isset($p['session'])){
+            $uid = MyValidate::checkSessionExistBySession($redis,$p['session']);
+            //        if(!is_numeric($uid)){ return res($uid); }
+        }else{
+            $uid = false;
+        }
+
+        //       数据加工
+//        $type = $p['type']??1;
+        $page = $p['page']??1;
+        $count = $p['count']??10;
+        //        只推送当前任务的
+        $taskId = $redis->getCurrentTaskId();
+        if(!$taskId || empty($taskId)){
+            $task = db('task')->where(['status'=>1,'finished'=>0])->order('create_time asc')->find();
+            $redis->setCurrentTaskId($task['id']);
+            $taskId = $task['id'];
+        }
+
+        $where = [];
+        $where['task_id'] = $taskId;
+        // 用户存在则进行定向推送
+        $pushCount = 0;
+        $pushArr = [];
+        $oldIds = [];
+        $finishedArr = [];
+        if($uid){
+            // 1、先获取用户已经打过的图片（本任务）
+            $where = [
+                'user_id'   =>  $uid,
+                'task_id'   =>  $taskId
+            ];
+            $oldIds = db('label_log')
+                ->alias('ll')
+                ->join('picture pic','ll.picture_id = pic.id')
+                ->where($where)
+                ->column('picture_id');
+            $oldIds = array_unique($oldIds);
+            if(!$oldIds){
+                $finishedArr = [];
+            }else{
+                // 2、找到最近一次打过且被标记为已完成的图片，根据其前几个标签，找到有该标签的相关图片
+                $where = [
+                    'id'    =>  ['in', $oldIds],
+                    'finished'  =>  1
+                ];
+                $finishedArr = db('picture')->where($where)->order('finished_time desc')->limit(0, 10)->column('id');
+            }
+        }
+        if(isset($uid) && $uid && !empty($oldIds)){
+
+            // 3、根据用户收藏的图片进行推送:
+            // 找到用户最近收藏的10张图片，将这10张图片的所有标签排序（已完成标签优先，数量大的优先）；
+            // 然后取前20个标签，用随机数获取其中的1个标签，获取包含该标签的未完成未打过的图片
+            $collectedArr = db('collected')->where('user_id',$uid)->order('create_time desc')->limit(0,10)->column('picture_id');
+            $pushIds = array_merge($finishedArr, $collectedArr);
+            $pushIds = array_unique($pushIds);
+            $where = [
+                'picture_id'    =>  ['in',$pushIds]
+            ];
+            $labels = db('label')
+                ->where($where)
+                ->field('label')
+                ->order('accepted desc,count desc')
+                ->limit(0,30)
+                ->select();
+            if(count($labels) > 1){
+                $label = $labels[rand(0,count($labels)-1)]['label'];
+            }else if(count($labels) == 1){
+                $label = $labels[0]['label'];
+            }else{
+                $label = ['like'=>'%'];
+            }
+
+            // 获取该标签下的图片ids
+            $where = [
+                'label' =>  $label,
+                'accepted'  =>  ['<>',1],
+                'picture_id'    =>  ['not in',$oldIds]
+            ];
+            $pictureIds = db('label')
+                ->where($where)
+                ->limit(0,10)
+                ->column('picture_id');
+            $pictureIds = array_unique($pictureIds);
+            $where = [
+                'task_id'   =>  $taskId,
+                'finished'  =>  ['<>',1],
+                'pic.id'        =>  ['in',$pictureIds]
+            ];
+            $push = $this->getImageDataByWhere($where,$page,$count)['data']['images'];
+            $pushArr = array_merge_recursive($pushArr, $push);
+            $pushCount += count($push);
+            // 如果少于10张，还需要继续获取
+            if($pushCount < 10){
+                $oldIds = array_merge($oldIds, $pictureIds);
+                $where = [
+                    'task_id' => $taskId,
+                    'finished'  =>  ['<>', 1],
+                    'pic.id'    =>  ['not in', $oldIds]
+                ];
+                $randArr = $this->getImageDataByWhere($where,$page,10-$pushCount)['data']['images'];
+                $pushArr = array_merge_recursive($pushArr, $randArr);
+            }
+            //       否则随机推送
+        }else{
+            $where = [];
+            $where['task_id'] = $taskId;
+            $where['finished'] = ['<>',1];
+            $pushArr = $this->getImageDataByWhere($where,$page,10-$pushCount)['data']['images'];
+        }
+        return res('推送成功', 1, ['images' =>  $pushArr]);
+    }
+
+    public function getImageByWhere($where=[],$page=1,$count=4,$collected=[])
+    {
+        $res = $this->getImageDataByWhere($where,$page,$count,$collected);
+        return $this->getReturn($res['res'], $res['data']);
+    }
+
+    /**
      * 用来根据where条件获取图片
      * @param array $where
      * @param int $page
@@ -716,7 +862,7 @@ class Image extends Controller
      * @param array $collected
      * @return string
      */
-    public function getImageByWhere($where=[],$page=1,$count=4,$collected=[])
+    public function getImageDataByWhere($where=[],$page=1,$count=4,$collected=[])
     {
 //        2、获取相关图片
         $images = db('picture')
@@ -744,6 +890,18 @@ class Image extends Controller
                 $images[$k]['collected'] = in_array($images[$k]['id'],$collected)?true:false;
             }
             $data['images'] = $images;
+        }else{
+            $data['images'] = [];
+        }
+        return [
+            'res'   =>  $images,
+            'data'  =>  $data
+        ];
+    }
+
+    public function getReturn($res,$data = [])
+    {
+        if($res){
             return res('推送成功',1,$data);
         }else{
             return res('推送失败');
@@ -759,9 +917,9 @@ class Image extends Controller
      * @return string
      */
     public function uploadImages()
-            {
+    {
 //      1、校验数据
-            $aid = MyValidate::checkAdminExistByCookie();
+        $aid = MyValidate::checkAdminExistByCookie();
         if(!is_numeric($aid)){ return res($aid); }
 //        2、上传图片
         $images = request()->file();

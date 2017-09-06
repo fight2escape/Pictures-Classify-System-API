@@ -11,6 +11,33 @@
 
 // 应用公共文件
 
+
+function mkKeyAssoc($arr, $key, $value = NULL){
+    $tmp = [];
+    foreach($arr as $one){
+        if($value === NULL){
+            $tmp[$one[$key]] = $one;
+        }else{
+            $tmp[$one[$key]] = $one[$value];
+        }
+    }
+    return $tmp;
+}
+
+/**
+ * 获取数组中的id数组
+ * @param $arr
+ * @param $key
+ * @return array
+ */
+function getIds($arr, $key){
+    $tmp = [];
+    foreach($arr as $one){
+        $tmp[] = $one[$key];
+    }
+    return array_unique($tmp);
+}
+
 /**
  * 获取待标记图片的完整路径（缩略图）
  * @param $imagePath

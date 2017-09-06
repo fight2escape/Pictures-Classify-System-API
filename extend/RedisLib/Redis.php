@@ -53,6 +53,22 @@ class Redis
         return $this->getInfoByKey($this->getKeyTask($id),$hashKeyArr);
     }
 
+    public function getCurrentTaskId()
+    {
+        return $this->get($this->getKeyCurrentTaskId());
+    }
+
+    public function setCurrentTaskId($id)
+    {
+        return $this->set($this->getKeyCurrentTaskId(),$id);
+    }
+
+    public function getKeyCurrentTaskId()
+    {
+        return 'currentTaskId';
+    }
+
+
     /**
      * 根据id获取用户数据（user:$id)
      * 如果有指定字段，则获取相应的值
@@ -409,9 +425,9 @@ class Redis
      */
 
     public function delete($key)
-    {
-        return $this->handler->delete($key);
-    }
+{
+    return $this->handler->delete($key);
+}
 
     public function set($key,$val)
     {
